@@ -1,0 +1,72 @@
+/* eslint-disable prettier/prettier */
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { JOB_MODEL, JobDocuments } from '../schemas/job/job.schema';
+import { Model } from 'mongoose';
+import { ACCOUNT_TYPE } from 'src/constants';
+import { UsersService } from 'src/users/users.service';
+import { CreateJobDTO, UpdateJobDTO } from './dto';
+@Injectable()
+export class JobsService {
+  constructor(
+    @InjectModel(JOB_MODEL)
+    private readonly jobModel: Model<JobDocuments>,
+    private readonly usersService: UsersService,
+  ) {}
+  async create(createJobDto: CreateJobDTO) {
+    const user = await this.usersService.findOne(createJobDto.userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    } else if (user.accountType !== ACCOUNT_TYPE.EMPLOYER) {
+      throw new ForbiddenException('Only employer can create job');
+    }
+
+    return this.jobModel.create({
+      ...createJobDto,
+      employer: createJobDto.userId,
+    });
+  }
+
+  findAll() {
+    return this.jobModel.find();
+  }
+
+  async findOne(id: string) {
+    const job = await this.jobModel.findById(id);
+
+    if (!job) {
+      throw new NotFoundException('Job not found');
+    }
+
+    return job;
+  }
+
+  async update(id: string, updateJobDto: UpdateJobDTO) {
+    const updatedJob = await this.jobModel.findByIdAndUpdate(id, updateJobDto, {
+      new: true,
+    });
+
+    if (!updatedJob) {
+      throw new NotFoundException('Job not found');
+    }
+
+    return updatedJob;
+  }
+
+  async remove(id: string) {
+    const deletedJob = await this.jobModel.findByIdAndDelete(id);
+
+    if (!deletedJob) {
+      throw new NotFoundException('Job not found');
+    }
+
+    return {
+      _id: id,
+    };
+  }
+}
